@@ -1,7 +1,7 @@
 {
 	"id": "note-shortcuts",
 	"name": "Note Shortcuts",
-	"version": "1.0.0",
+	"version": "0.1.0",
 	"minAppVersion": "1.4.11",
 	"description": "Register a command for any note you pick, so it can be opened from the command palette or bound to its own hotkey.",
 	"author": "Bruno Paz",
