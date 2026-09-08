@@ -10,7 +10,6 @@ on:
 
 jobs:
   lint:
-    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -57,37 +56,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ github.event.release.tag_name }}" main.js manifest.json --clobber
 
-  # Mirrors the published release's draftsman-generated notes into an
-  # in-repo CHANGELOG.md and pushes that back to the release's target branch.
-  update-changelog:
-    if: github.event_name == 'release'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.release.target_commitish }}
-      - uses: stefanzweifel/changelog-updater-action@v1.12.0
-        with:
-          latest-version: ${{ github.event.release.tag_name }}
-          release-notes: ${{ github.event.release.body }}
-      - uses: stefanzweifel/git-auto-commit-action@v7.2.0
-        with:
-          branch: ${{ github.event.release.target_commitish }}
-          commit_message: 'docs: update CHANGELOG.md for ${{ github.event.release.tag_name }} [skip ci] [skip changelog]'
-          file_pattern: CHANGELOG.md
-
-  # Syncs the repo-root manifest.json/versions.json to the just-published
-  # version. draftsman computes and tags the version itself — nobody needs
-  # to run `pnpm version` locally before tagging anymore; this job aligns
-  # the files after the fact, once release:published confirms what shipped.
-  #
-  # needs: update-changelog to serialize the two jobs that push to main —
-  # running them in parallel means the second push loses a non-fast-forward
-  # race, since git-auto-commit-action doesn't retry/rebase on conflict.
-  bump-manifest-version:
-    needs: update-changelog
+  # Syncs manifest.json/versions.json to the just-published version and
+  # mirrors the release notes into CHANGELOG.md — one job, one commit, so
+  # a release only ever produces a single "sync repo to vX.Y.Z" commit
+  # instead of two separate bot commits landing back-to-back on main.
+  # draftsman computes and tags the version itself; nobody bumps these
+  # files or writes changelog entries locally anymore.
+  sync-release-metadata:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     permissions:
@@ -103,8 +78,12 @@ jobs:
       - env:
           npm_package_version: ${{ steps.version.outputs.value }}
         run: node version-bump.mjs
+      - uses: stefanzweifel/changelog-updater-action@v1.12.0
+        with:
+          latest-version: ${{ github.event.release.tag_name }}
+          release-notes: ${{ github.event.release.body }}
       - uses: stefanzweifel/git-auto-commit-action@v7.2.0
         with:
           branch: ${{ github.event.release.target_commitish }}
-          commit_message: 'chore(release): sync manifest.json to ${{ github.event.release.tag_name }} [skip ci] [skip changelog]'
-          file_pattern: manifest.json versions.json
+          commit_message: 'chore(release): sync repo to ${{ github.event.release.tag_name }} [skip ci] [skip changelog]'
+          file_pattern: manifest.json versions.json CHANGELOG.md
