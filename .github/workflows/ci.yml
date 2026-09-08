@@ -27,6 +27,11 @@ jobs:
   # real release, which fires this event. Builds the plugin and attaches
   # main.js/manifest.json to that release as individual assets, per the
   # community-plugin install requirement.
+  #
+  # draftsman computes the release version from commit history, not from
+  # manifest.json, so the checked-out manifest.json still has the previous
+  # version at this point — bump it here before upload, since the release
+  # asset copy (not the repo-root one) is what BRAT/Obsidian actually read.
   attach-release-assets:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
@@ -34,6 +39,13 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
+      - id: version
+        run: echo "value=${TAG#v}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+      - env:
+          npm_package_version: ${{ steps.version.outputs.value }}
+        run: node version-bump.mjs
       - uses: pnpm/action-setup@v6.1.0
       - uses: actions/setup-node@v6
         with:
@@ -65,3 +77,29 @@ jobs:
           branch: ${{ github.event.release.target_commitish }}
           commit_message: 'docs: update CHANGELOG.md for ${{ github.event.release.tag_name }} [skip ci] [skip changelog]'
           file_pattern: CHANGELOG.md
+
+  # Syncs the repo-root manifest.json/versions.json to the just-published
+  # version. draftsman computes and tags the version itself — nobody needs
+  # to run `pnpm version` locally before tagging anymore; this job aligns
+  # the files after the fact, once release:published confirms what shipped.
+  bump-manifest-version:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.target_commitish }}
+      - id: version
+        run: echo "value=${TAG#v}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+      - env:
+          npm_package_version: ${{ steps.version.outputs.value }}
+        run: node version-bump.mjs
+      - uses: stefanzweifel/git-auto-commit-action@v7.2.0
+        with:
+          branch: ${{ github.event.release.target_commitish }}
+          commit_message: 'chore(release): sync manifest.json to ${{ github.event.release.tag_name }} [skip ci] [skip changelog]'
+          file_pattern: manifest.json versions.json

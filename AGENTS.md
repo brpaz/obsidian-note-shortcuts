@@ -94,13 +94,11 @@ pnpm build
 
 ## Versioning & releases
 
-Release notes and the release object are owned by `.github/workflows/draftsman.yml`; building and attaching plugin files is owned by `.github/workflows/ci.yml`. They're deliberately separate workflows, chained through GitHub events rather than `needs:`:
+Release notes and the release object are owned by `.github/workflows/draftsman.yml`; everything that happens after a release is published is owned by `.github/workflows/ci.yml`. They're deliberately separate workflows, chained through GitHub events rather than `needs:`:
 
-1. Every push to `main` → `draftsman.yml`'s `draft` job keeps a draft GitHub release's changelog current via [draftsman](https://github.com/brpaz/draftsman) (`.draftsman.yml` sets `mode: single` — one plugin, not a monorepo).
-2. Pushing a `vX.Y.Z` tag → `draftsman.yml`'s `publish` job promotes the matching draft to a real, published release (no build artifacts yet).
-3. That publish fires a `release: published` event → `ci.yml`'s `attach-release-assets` job builds the plugin and uploads `main.js`/`manifest.json` to it.
-
-To cut a release: bump `version` in `manifest.json` and `minAppVersion`→`version` in `versions.json`, commit, then `git tag vX.Y.Z && git push --tags` (`pnpm version patch|minor|major` does the manifest/versions.json bump for you, per the `version` script in `package.json`).
+1. Every push to `main` → `draftsman.yml`'s `draft` job keeps a draft GitHub release's changelog current via [draftsman](https://github.com/brpaz/draftsman) (`.draftsman.yml` sets `mode: single` — one plugin, not a monorepo). draftsman computes the version from Conventional Commits since the last tag — nothing in `manifest.json` drives this.
+2. To cut a release: `git tag vX.Y.Z && git push --tags` — draftsman's `publish` job promotes the matching draft to a real, published release. **Nobody bumps `manifest.json`/`versions.json` by hand**; `version-bump.mjs` and the `version` npm script exist only as a manual override if you ever need one.
+3. That publish fires a `release: published` event, which three `ci.yml` jobs react to in parallel: `attach-release-assets` builds the plugin (bumping its own in-runner `manifest.json` copy first, since the release asset — not the repo-root file — is what BRAT/Obsidian read) and uploads `main.js`/`manifest.json`; `bump-manifest-version` syncs the repo-root `manifest.json`/`versions.json` to match and commits that back to `main`; `update-changelog` mirrors the release notes into `CHANGELOG.md`.
 
 After the initial release, follow the process to add/update your plugin in the community catalog as required.
 
