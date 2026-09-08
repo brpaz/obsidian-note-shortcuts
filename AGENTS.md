@@ -9,35 +9,35 @@
 ## Environment & tooling
 
 - Node.js: use current LTS (Node 18+ recommended).
-- **Package manager: npm** (required for this sample - `package.json` defines npm scripts and dependencies).
+- **Package manager: pnpm** (`package.json`'s `packageManager` field pins the exact version; `pnpm-workspace.yaml` allowlists esbuild's install script).
 - **Bundler: esbuild** (required for this sample - `esbuild.config.mjs` and build scripts depend on it). Alternative bundlers like Rollup or webpack are acceptable for other projects if they bundle all external dependencies into `main.js`.
 - Types: `obsidian` type definitions.
 
-**Note**: This sample project has specific technical dependencies on npm and esbuild. If you're creating a plugin from scratch, you can choose different tools, but you'll need to replace the build configuration accordingly.
+**Note**: This sample project has specific technical dependencies on pnpm and esbuild. If you're creating a plugin from scratch, you can choose different tools, but you'll need to replace the build configuration accordingly.
 
 ### Install
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### Dev (watch)
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 ### Production build
 
 ```bash
-npm run build
+pnpm build
 ```
 
 ## Linting
 
 - ESLint is preconfigured with `eslint-plugin-obsidianmd` for Obsidian-specific rules.
-- Run `npm run lint` to lint the project.
-- A GitHub Action automatically lints every commit on all branches.
+- Run `pnpm lint` to lint the project.
+- `ci.yml`'s `lint` job runs this on every push and PR.
 
 ## File & folder conventions
 
@@ -94,10 +94,15 @@ npm run build
 
 ## Versioning & releases
 
-- `.github/workflows/ci.yml` runs three jobs: `lint` (build + eslint on every push/PR), `draft` (pushes to `main` keep a draft GitHub release's changelog current via [draftsman](https://github.com/brpaz/draftsman)), and `release` (a `v*` tag push promotes the matching draft with `draftsman publish` and uploads `main.js`/`manifest.json` to it).
-- To cut a release: bump `version` in `manifest.json` and `minAppVersion`→`version` in `versions.json`, commit, then `git tag vX.Y.Z && git push --tags` (`npm version patch|minor|major` does the manifest/versions.json bump for you, per the `version` npm script in `package.json`).
-- `.draftsman.yml` sets `mode: single` — this repo is one plugin, not a monorepo.
-- After the initial release, follow the process to add/update your plugin in the community catalog as required.
+Release notes and the release object are owned by `.github/workflows/draftsman.yml`; building and attaching plugin files is owned by `.github/workflows/ci.yml`. They're deliberately separate workflows, chained through GitHub events rather than `needs:`:
+
+1. Every push to `main` → `draftsman.yml`'s `draft` job keeps a draft GitHub release's changelog current via [draftsman](https://github.com/brpaz/draftsman) (`.draftsman.yml` sets `mode: single` — one plugin, not a monorepo).
+2. Pushing a `vX.Y.Z` tag → `draftsman.yml`'s `publish` job promotes the matching draft to a real, published release (no build artifacts yet).
+3. That publish fires a `release: published` event → `ci.yml`'s `attach-release-assets` job builds the plugin and uploads `main.js`/`manifest.json` to it.
+
+To cut a release: bump `version` in `manifest.json` and `minAppVersion`→`version` in `versions.json`, commit, then `git tag vX.Y.Z && git push --tags` (`pnpm version patch|minor|major` does the manifest/versions.json bump for you, per the `version` script in `package.json`).
+
+After the initial release, follow the process to add/update your plugin in the community catalog as required.
 
 ## Security, privacy, and compliance
 
@@ -255,7 +260,7 @@ this.registerInterval(
 ## Troubleshooting
 
 - Plugin doesn't load after build: ensure `main.js` and `manifest.json` are at the top level of the plugin folder under `<Vault>/.obsidian/plugins/<plugin-id>/`.
-- Build issues: if `main.js` is missing, run `npm run build` or `npm run dev` to compile your TypeScript source code.
+- Build issues: if `main.js` is missing, run `pnpm build` or `pnpm dev` to compile your TypeScript source code.
 - Commands not appearing: verify `addCommand` runs after `onload` and IDs are unique.
 - Settings not persisting: ensure `loadData`/`saveData` are awaited and you re-render the UI after changes.
 - Mobile-only issues: confirm you're not using desktop-only APIs; check `isDesktopOnly` and adjust.

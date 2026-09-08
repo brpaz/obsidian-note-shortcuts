@@ -3,68 +3,65 @@ name: CI
 on:
   push:
     branches: ['**']
-    tags: ['v*']
   pull_request:
     branches: [main]
+  release:
+    types: [published]
 
 jobs:
   lint:
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6.1.0
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build
-      - run: npm run lint
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm run lint
 
-  # Keeps a continuously-updated draft release with generated changelog
-  # notes in sync with main, so cutting a release is just tagging it.
-  draft:
-    needs: lint
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  # Runs once draftsman.yml's `publish` job promotes a tag's draft to a
+  # real release, which fires this event. Builds the plugin and attaches
+  # main.js/manifest.json to that release as individual assets, per the
+  # community-plugin install requirement.
+  attach-release-assets:
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: brpaz/draftsman@v0.2.3
-        with:
-          command: draft
-          backend: github
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-  # Promotes the matching draft to a real release and attaches the built
-  # plugin files community submission requires (manifest.json in the repo
-  # root already satisfies that; these are the release-asset copies).
-  release:
-    needs: lint
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
+      - uses: pnpm/action-setup@v6.1.0
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build
-      - id: version
-        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-      - uses: brpaz/draftsman@v0.2.3
-        with:
-          command: publish
-          backend: github
-          token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ steps.version.outputs.value }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
       - env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.ref_name }}" main.js manifest.json --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" main.js manifest.json --clobber
+
+  # Mirrors the published release's draftsman-generated notes into an
+  # in-repo CHANGELOG.md and pushes that back to the release's target branch.
+  update-changelog:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.target_commitish }}
+      - uses: stefanzweifel/changelog-updater-action@v1.12.0
+        with:
+          latest-version: ${{ github.event.release.tag_name }}
+          release-notes: ${{ github.event.release.body }}
+      - uses: stefanzweifel/git-auto-commit-action@v7.2.0
+        with:
+          branch: ${{ github.event.release.target_commitish }}
+          commit_message: 'docs: update CHANGELOG.md for ${{ github.event.release.tag_name }} [skip ci] [skip changelog]'
+          file_pattern: CHANGELOG.md

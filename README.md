@@ -30,10 +30,10 @@ Not yet submitted — see [releases](https://github.com/brpaz/obsidian-note-shor
 ## Development
 
 ```bash
-npm install
-npm run dev    # watch mode, compiles src/main.ts -> main.js
-npm run build  # production build + type check
-npm run lint   # eslint, including obsidian-specific plugin rules
+pnpm install
+pnpm dev    # watch mode, compiles src/main.ts -> main.js
+pnpm build  # production build + type check
+pnpm lint   # eslint, including obsidian-specific plugin rules
 ```
 
 ## License
