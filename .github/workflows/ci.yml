@@ -82,7 +82,12 @@ jobs:
   # version. draftsman computes and tags the version itself — nobody needs
   # to run `pnpm version` locally before tagging anymore; this job aligns
   # the files after the fact, once release:published confirms what shipped.
+  #
+  # needs: update-changelog to serialize the two jobs that push to main —
+  # running them in parallel means the second push loses a non-fast-forward
+  # race, since git-auto-commit-action doesn't retry/rebase on conflict.
   bump-manifest-version:
+    needs: update-changelog
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     permissions:
