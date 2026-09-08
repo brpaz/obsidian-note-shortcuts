@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
+
+  # Keeps a continuously-updated draft release with generated changelog
+  # notes in sync with main, so cutting a release is just tagging it.
+  draft:
+    needs: lint
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: brpaz/draftsman@v0.2.3
+        with:
+          command: draft
+          backend: github
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Promotes the matching draft to a real release and attaches the built
+  # plugin files community submission requires (manifest.json in the repo
+  # root already satisfies that; these are the release-asset copies).
+  release:
+    needs: lint
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - uses: brpaz/draftsman@v0.2.3
+        with:
+          command: publish
+          backend: github
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ steps.version.outputs.value }}
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" main.js manifest.json --clobber

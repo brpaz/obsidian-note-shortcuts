@@ -94,9 +94,9 @@ npm run build
 
 ## Versioning & releases
 
-- Bump `version` in `manifest.json` (SemVer) and update `versions.json` to map plugin version → minimum app version.
-- Create a GitHub release whose tag exactly matches `manifest.json`'s `version`. Do not use a leading `v`.
-- Attach `manifest.json`, `main.js`, and `styles.css` (if present) to the release as individual assets.
+- `.github/workflows/ci.yml` runs three jobs: `lint` (build + eslint on every push/PR), `draft` (pushes to `main` keep a draft GitHub release's changelog current via [draftsman](https://github.com/brpaz/draftsman)), and `release` (a `v*` tag push promotes the matching draft with `draftsman publish` and uploads `main.js`/`manifest.json` to it).
+- To cut a release: bump `version` in `manifest.json` and `minAppVersion`→`version` in `versions.json`, commit, then `git tag vX.Y.Z && git push --tags` (`npm version patch|minor|major` does the manifest/versions.json bump for you, per the `version` npm script in `package.json`).
+- `.draftsman.yml` sets `mode: single` — this repo is one plugin, not a monorepo.
 - After the initial release, follow the process to add/update your plugin in the community catalog as required.
 
 ## Security, privacy, and compliance

@@ -1,0 +1,4 @@
+# yaml-language-server: $schema=https://brpaz.github.io/draftsman/schema/config.schema.json
+
+# Single Obsidian plugin, not a monorepo -> one repo-wide draft release.
+mode: single
